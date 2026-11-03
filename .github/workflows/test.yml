@@ -1,0 +1,21 @@
+name: tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fixture and standalone-copy tests
+        run: python3 -m unittest discover -s tests -v
+      - name: Script and manifest syntax
+        run: |
+          python3 -m compileall -q vault_maintenance.py skills/vault-maintenance/scripts
+          python3 -m json.tool manifest.json >/dev/null
+          bash -n examples/nightly.sh
