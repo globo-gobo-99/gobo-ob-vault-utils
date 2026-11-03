@@ -41,10 +41,10 @@ Files: `vault_maintenance.py`, `tests/test_maintenance.py`, `tests/test_cli.py`,
 
 Files: split a focused reference module if needed; add fixture tests.
 
-- [ ] Test actual Downloaded arrivals versus uploads, dates, root exemptions/exclusions, collision, ambiguous wiki names, Markdown/embedded relative paths, date-note navigation, concurrent changes and interrupted apply recovery.
-- [ ] Implement only after red fixtures; physical no-overwrite moves with original names, explicit rewrite checks and durable recovery journal. Do not activate a move if any affected reference is unresolved.
-- [ ] Test idempotence, crash recovery and no retrospective sweep. Keep ambiguity visible rather than guessing.
-- [ ] Commit locally only.
+- [x] Test actual Downloaded arrivals versus uploads, dates, root exemptions/exclusions, collision, ambiguous wiki names, Markdown/embedded relative paths, date-note navigation, concurrent changes and interrupted apply recovery.
+- [x] Implement only after red fixtures; physical no-overwrite moves with original names, explicit rewrite checks and durable recovery journal. Do not activate a move if any affected reference is unresolved.
+- [x] Test idempotence, crash recovery and no retrospective sweep. Keep ambiguity visible rather than guessing.
+- [x] Commit locally only.
 
 ## Task 3: Portable skill and packaging
 
