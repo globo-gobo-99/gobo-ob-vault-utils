@@ -43,4 +43,8 @@ class MaintenanceTests(unittest.TestCase):
   with self.log.open('a') as f:f.write('[2026-11-03T00:10:00Z] Upload complete existing.md\n')
   result=self.m.read_changes(self.log,cursor)
   self.assertFalse(result['events'][0]['arrival'])
+ def test_missing_final_newline_is_fixed_without_trimming_markdown_break(self):
+  result=self.m.lint_text('---\ncreated: 2026-11-02\nmodified: 2026-11-02T17:00\n---\nHuman text  ', '2026-11-02T18:40')
+  self.assertTrue(result['text'].endswith('Human text  \n'))
+  self.assertIn('created: 2026-11-02',result['text'])
 if __name__=='__main__':unittest.main()

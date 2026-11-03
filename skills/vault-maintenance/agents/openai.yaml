@@ -1,0 +1,3 @@
+interface:
+  display_name: "Vault maintenance"
+  short_description: "Maintain recent Sync arrivals without content curation"

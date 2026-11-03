@@ -1,0 +1,17 @@
+{
+  "name": "agent-session-tools",
+  "version": "0.1.0",
+  "checkpoint_schema": 1,
+  "journal_schema": 1,
+  "runtime": "Linux Python >=3.11, standard library only",
+  "entrypoint": "vault_maintenance.py",
+  "portable_entrypoint": "skills/vault-maintenance/scripts/maintain_vault.py",
+  "commands": ["baseline", "run", "recover"],
+  "default_mode": "dry-run",
+  "default_timezone": "America/Boise",
+  "default_daily_folder": "Sessions",
+  "max_unread_log_bytes": 8388608,
+  "verified_native_log_source": "obsidian-headless 0.0.14",
+  "coverage": "Complete native Sync records since explicit cursor baseline; no retrospective sweep",
+  "excluded_capabilities": ["content curation", "summaries", "article fetching", "automatic scheduler installation", "HTML link rewrite", "anchor validation"]
+}

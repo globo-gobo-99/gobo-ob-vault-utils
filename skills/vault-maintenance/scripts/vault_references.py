@@ -4,7 +4,7 @@ import re
 from urllib.parse import quote, unquote, urlsplit
 
 WIKI = re.compile(r'!?\[\[([^\]\n]+)\]\]')
-MARKDOWN = re.compile(r'!?\[[^\]\n]*\]\((<[^>\n]+>|[^\s)\n]+)(?:\s+(?:"[^"\n]*"|\x27[^\x27\n]*\x27))?\)')
+MARKDOWN = re.compile(r'!?\[[^\]\n]*\]\((<[^>\n]+>|(?:\\.|[^\s()\n]|\([^()\n]*\))+)(?:\s+(?:"[^"\n]*"|\x27[^\x27\n]*\x27))?\)')
 DEFINITION = re.compile(r'^ {0,3}\[[^\]\n]+\]:\s*(<[^>\n]+>|[^\s\n]+)', re.M)
 
 
@@ -13,6 +13,7 @@ def code_mask(text):
     masked = list(text)
     fence = None
     offset = 0
+    list_body_indent = None
     for line in text.splitlines(keepends=True):
         start = re.match(r'^ {0,3}(`{3,}|~{3,})', line)
         if fence:
@@ -22,6 +23,16 @@ def code_mask(text):
         elif start:
             fence = start.group(1)
             masked[offset:offset + len(line)] = ' ' * len(line)
+        elif line.strip():
+            expanded = line.expandtabs(4)
+            indent = len(expanded) - len(expanded.lstrip(' '))
+            marker = re.match(r'^ *(?:[-+*]|[0-9]+[.)]) +', expanded)
+            if indent >= (list_body_indent + 4 if list_body_indent is not None else 4):
+                masked[offset:offset + len(line)] = ' ' * len(line)
+            elif marker:
+                list_body_indent = marker.end()
+            elif indent == 0:
+                list_body_indent = None
         offset += len(line)
     interim = ''.join(masked)
     for match in re.finditer(r'(`+)([^\n]*?)\1', interim):
@@ -44,8 +55,16 @@ def rewrite_references(text, old_source, new_source, moves, inventory):
     def issue(kind, target, blocks=False):
         issues.append({'path': old_source, 'issue': kind, 'target': target, 'blocks_move': blocks})
 
+    def decoded_path(target):
+        return re.sub(r'\\([\\`*{}\[\]()#+\-.!_>])', r'\1', unquote(target))
+
+    def affects_move(target):
+        decoded = decoded_path(target).split('?', 1)[0].split('#', 1)[0]
+        name = posixpath.basename(decoded)
+        return name in moved_names or name in moved_stems
+
     def resolve(target, wiki):
-        decoded = unquote(target)
+        decoded = decoded_path(target)
         if wiki and '/' not in decoded:
             candidates = {p for p in inventory if posixpath.basename(p) == decoded
                           or (p.endswith('.md') and posixpath.basename(p)[:-3] == decoded)}
@@ -60,8 +79,7 @@ def rewrite_references(text, old_source, new_source, moves, inventory):
                 candidates |= {p + '.md' for p in choices if p and p + '.md' in inventory}
         if len(candidates) == 1:
             return next(iter(candidates))
-        relevant = (old_source in moves or posixpath.basename(decoded) in moved_names
-                    or posixpath.basename(decoded) in moved_stems)
+        relevant = old_source in moves or affects_move(target)
         issue('ambiguous-reference' if candidates else 'missing-reference', target, relevant)
         return None
 
@@ -96,7 +114,7 @@ def rewrite_references(text, old_source, new_source, moves, inventory):
             if not pathpart:
                 continue
             if '?' in pathpart:
-                issue('unsupported-local-query', target, old_source in moves)
+                issue('unsupported-local-query', target, old_source in moves or affects_move(pathpart))
                 continue
             resolved = resolve(pathpart, False)
             if resolved is None:
@@ -114,9 +132,13 @@ def rewrite_references(text, old_source, new_source, moves, inventory):
     for start, end in covered:
         leftover[start:end] = ' ' * (end - start)
     remainder = ''.join(leftover)
+    for tag in re.finditer(r'<[^>]*\b(?:href|src|srcset|poster|data)\s*=[^>]*>', remainder, re.I | re.S):
+        if any(name in decoded_path(tag.group()) for name in moved_names | moved_stems):
+            issue('unsupported-affected-html-reference', tag.group(), True)
     for line in remainder.splitlines():
-        if ('[[' in line or '](' in line or re.match(r'^\s*\[[^]]+\]:', line)) and any(
-                name in unquote(line) for name in moved_names | moved_stems):
+        if ('[[' in line or '](' in line or re.match(r'^\s*\[[^]]+\]:', line)
+                or re.search(r'<[^>]+\b(?:href|src|srcset|poster|data)\s*=', line, re.I)) and any(
+                name in decoded_path(line) for name in moved_names | moved_stems):
             issue('unsupported-affected-reference', line, True)
     for start, end, replacement in sorted(edits, reverse=True):
         text = text[:start] + replacement + text[end:]

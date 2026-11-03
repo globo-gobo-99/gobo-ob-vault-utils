@@ -98,6 +98,21 @@ class CliTests(unittest.TestCase):
         self.assertTrue(plan['issues'])
         self.assertIn('Private unrelated content', outside.read_text())
 
+    def test_new_local_root_upload_moves_but_existing_root_upload_does_not(self):
+        existing = self.vault / 'old.md'
+        existing.write_text('# Existing before baseline\n')
+        self.assertEqual(self.cli('baseline').returncode, 0)
+        new = self.vault / 'new.md'
+        new.write_text('# New local arrival\n')
+        with self.log.open('a') as stream:
+            for name in ('old.md', 'new.md'):
+                stream.write(f'[2026-11-03T00:10:00Z] Upload complete {name}\n')
+        result = self.cli('run', '--apply')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(existing.exists())
+        self.assertFalse(new.exists())
+        self.assertTrue((self.vault / 'Sessions/2026-11-02/new.md').exists())
+
 
 if __name__ == '__main__':
     unittest.main()

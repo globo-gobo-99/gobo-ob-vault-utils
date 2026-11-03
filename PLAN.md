@@ -50,6 +50,6 @@ Files: split a focused reference module if needed; add fixture tests.
 
 Files: `skills/vault-maintenance/SKILL.md`, examples, root README/license/project metadata.
 
-- [ ] Package standalone scripts without copied host state. Explain bounded nightly invocation without installing a timer. Include deterministic manifest/schema attribution to the public Wanderloots core guide; exclude its knowledge-compilation workflow.
-- [ ] Validate skill and complete fixture behavior. Request independent review under the code-review skill, fix demonstrated problems, update r4 checkpoint.
-- [ ] Record unpublished local commits and remaining human acceptance. No whole-project completion claim while required manual enrollment/device checks remain.
+- [x] Package standalone scripts without copied host state. Explain bounded nightly invocation without installing a timer. Include deterministic manifest/schema attribution to the public Wanderloots core guide; exclude its knowledge-compilation workflow.
+- [x] Validate skill and complete fixture behavior. Request independent review under the code-review skill, fix demonstrated problems, update r4 checkpoint.
+- [x] Record unpublished local commits and remaining human acceptance. No whole-project completion claim while required manual enrollment/device checks remain.
