@@ -1,6 +1,6 @@
 # Portable vault maintenance implementation plan
 
-> **For agentic workers:** Use executing-plans to implement this plan task by task. No cloud resource start, external publication or live personal vault mutation is authorized after the expired r4 commissioning window.
+> **For agentic workers:** Use executing-plans to implement this plan task by task. Use disposable fixtures; external publication, live vault operation and scheduling require their own explicit authorized scope.
 
 **Goal:** Finish the deterministic portable maintenance skill specified by the r4 handoff.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11+, unittest, uv for isolated development when needed. No runtime packages or Hermes dependency.
 
-**Spec:** Wreckless Abandon `20261102-DevPod-Handoff-r4.md`, portable maintenance paragraph. Do not copy personal notes/logs/auth into this repository.
+**Spec:** The recent-arrival and deterministic-maintenance contract in README.md. Do not copy personal notes/logs/auth into this repository.
 
 ## Global constraints
 
