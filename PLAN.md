@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python 3.11+, unittest, uv for isolated development when needed. No runtime packages or Hermes dependency.
 
-**Spec:** The recent-arrival and deterministic-maintenance contract in README.md. Do not copy personal notes/logs/auth into this repository.
+**Spec:** The recent-arrival and deterministic-maintenance contract in USAGE.md. Do not copy personal notes/logs/auth into this repository.
 
 ## Global constraints
 
