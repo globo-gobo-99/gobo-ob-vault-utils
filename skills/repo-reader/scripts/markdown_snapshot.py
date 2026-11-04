@@ -19,6 +19,14 @@ DENIED_DIRS = {'.git', '.ssh', '.aws', '.gnupg', '.venv', 'venv', 'node_modules'
                '__pycache__', 'vendor', 'dist', 'build', '.cache'}
 SECRET_NAMES = ('.env', '.env.*', '.npmrc', '.pypirc', '.netrc', 'id_rsa*', 'id_ed25519*',
                 '*.pem', '*.key', '*.p12', '*.pfx', 'credentials', 'credentials.*', 'secrets.*')
+CI_DIRS = {'.github', '.gitlab', '.circleci', '.buildkite', '.ci', '.cicd',
+           '.tekton', '.azure-pipelines', '.teamcity', '.wercker'}
+CI_FILES = ('jenkinsfile*', '.gitlab-ci*.yml', '.gitlab-ci*.yaml', '.travis.yml',
+            'azure-pipelines*.yml', 'azure-pipelines*.yaml', 'bitbucket-pipelines*.yml',
+            'bitbucket-pipelines*.yaml', '.drone*.yml', '.drone*.yaml',
+            '.woodpecker*.yml', '.woodpecker*.yaml', 'appveyor.yml', '.appveyor.yml',
+            'wercker.yml', 'cloudbuild*.yaml', 'cloudbuild*.yml', 'buildspec*.yml',
+            'buildspec*.yaml')
 TOKEN = re.compile(rb'-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----|'
                    rb'(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|'
                    rb'tskey-[a-z]+-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{24,})')
@@ -54,6 +62,13 @@ def safe_label(value):
 def page_name(path, ordinal):
     basename = re.sub(r'[^\w.-]+', '_', PurePosixPath(path).name)[:80] or 'source'
     return f'{ordinal:04d}-{basename}.md'
+
+
+def is_ci_content(parts):
+    lowered = tuple(p.lower() for p in parts)
+    return (any(p in CI_DIRS for p in lowered[:-1])
+            or (len(lowered) > 1 and lowered[0] in {'ci', 'cicd', 'ci-cd'})
+            or any(fnmatch.fnmatchcase(lowered[-1], p) for p in CI_FILES))
 
 
 def github_source(repo, explicit=None):
@@ -151,6 +166,7 @@ def prepare(repo, output, *, ref='HEAD', source_url=None, sensitivity='private',
         reason = None
         if mode == b'120000':reason = 'symlink'
         elif kind != b'blob' or mode not in {b'100644', b'100755'}:reason = 'submodule-or-special'
+        elif is_ci_content(parts):reason = 'ci-cd'
         elif any(p in DENIED_DIRS for p in parts[:-1]):reason = 'dependency-or-private-directory'
         elif any(fnmatch.fnmatchcase(parts[-1].lower(), p) for p in SECRET_NAMES):reason = 'credential-filename'
         elif include and not any(fnmatch.fnmatchcase(path, p) for p in include):reason = 'outside-include'
@@ -207,7 +223,7 @@ def prepare(repo, output, *, ref='HEAD', source_url=None, sensitivity='private',
                     layout='flat-numbered-pages',
                     commit=commit, captured_at=now.isoformat(), sensitivity=sensitivity,
                     scope='committed-tree-only', entries=entries,
-                    policy=dict(include=list(include), exclude=list(exclude), max_bytes=max_bytes,
+                    policy=dict(include=list(include), exclude=list(exclude), ci_cd_excluded=True, max_bytes=max_bytes,
                                 max_total_bytes=max_total_bytes, max_files=max_files),
                     generated_files={p:hashlib.sha256(s.encode()).hexdigest() for p,s in pages.items()})
     pages['snapshot.json'] = json.dumps(manifest, indent=2, ensure_ascii=False) + '\n'
