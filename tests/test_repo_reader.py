@@ -112,6 +112,20 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(sentinel.read_text(),'keep me')
         with self.assertRaises(snapshot.SnapshotError):snapshot.prepare(self.repo,self.repo/'snapshot')
 
+    def test_ci_cd_content_is_omitted_even_with_explicit_include(self):
+        files=['.github/workflows/tests.yml','.github/actions/build/action.yml',
+               '.circleci/config.yml','Jenkinsfile','azure-pipelines.yml',
+               '.gitlab-ci.yml','ci/build.sh','buildspec.yaml']
+        for name in files:self.put(name,'CI_CONTENT_SHOULD_NOT_BE_COPIED\n')
+        self.put('src/ci_parser.py','pass\n')
+        self.git('add','.');self.git('commit','-qm','ci fixture')
+        _,pages,m=self.prepare(include=['*'])
+        reasons={e['path']:e['status'] for e in m['entries']}
+        for name in files:self.assertEqual(reasons[name],'ci-cd')
+        self.assertEqual(reasons['src/ci_parser.py'],'included')
+        self.assertNotIn('CI_CONTENT_SHOULD_NOT_BE_COPIED',''.join(pages.values()))
+        self.assertTrue(m['policy']['ci_cd_excluded'])
+
     def test_unsafe_ref_and_invalid_settings_do_not_write(self):
         for ref in ['missing-ref','--help']:
             with self.assertRaises(snapshot.SnapshotError):self.prepare(ref=ref)
