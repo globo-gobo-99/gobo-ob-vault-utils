@@ -24,6 +24,7 @@ class SnapshotTests(unittest.TestCase):
         self.git('init', '-q')
         self.git('config', 'user.name', 'Fixture')
         self.git('config', 'user.email', 'fixture@example.invalid')
+        self.git('remote', 'add', 'origin', 'https://github.com/example/source.git')
         self.put('src/app.py', 'print("committed")\n')
         self.put('docs/a space.md', '# Title\n\n```python\nprint(1)\n```\n````\n')
         self.git('add', '.')
@@ -48,16 +49,21 @@ class SnapshotTests(unittest.TestCase):
         self.put('untracked.py', 'print("untracked")\n')
         out,pages,m = self.prepare()
         self.assertEqual(m['commit'], self.git('rev-parse', 'HEAD'))
-        self.assertIn('committed', pages['Files/src/app.py.md'])
-        self.assertNotIn('dirty', pages['Files/src/app.py.md'])
-        self.assertNotIn('Files/untracked.py.md', pages)
+        page = next(e['page'] for e in m['entries'] if e['path']=='src/app.py')
+        self.assertIn('committed', pages[page])
+        self.assertNotIn('dirty', pages[page])
+        self.assertNotIn('untracked.py', [e['path'] for e in m['entries']])
         self.assertFalse(out.exists())
 
     def test_structure_links_metadata_and_fences(self):
         out,pages,m = self.prepare(timezone='America/Boise')
         self.assertIn('src/', pages['README.md'])
-        self.assertIn('Files/docs/a%20space.md.md', pages['README.md'])
-        self.assertIn('`````markdown', pages['Files/docs/a space.md.md'])
+        page = next(e['page'] for e in m['entries'] if e['path']=='docs/a space.md')
+        self.assertIn(page, pages['README.md'])
+        self.assertIn('`````markdown', pages[page])
+        self.assertIn('/docs/a%20space.md', pages[page])
+        self.assertIn('https://github.com/example/source', pages['README.md'])
+        self.assertTrue(all('/' not in name for name in pages))
         for name,text in pages.items():
             if name.endswith('.md'):
                 self.assertTrue(text.startswith('---\nsensitivity: private\ncreated:'))
@@ -113,12 +119,13 @@ class SnapshotTests(unittest.TestCase):
             with self.assertRaises(snapshot.SnapshotError):self.prepare(**options)
         self.assertFalse(self.out.exists())
 
-    def test_suffix_collision_fails_without_output(self):
+    def test_flat_names_avoid_source_suffix_collisions(self):
         self.put('a','text')
         self.put('a.md/child.py','text')
         self.git('add','.');self.git('commit','-qm','collision')
-        with self.assertRaisesRegex(snapshot.SnapshotError,'collide'):self.prepare()
-        self.assertFalse(self.out.exists())
+        _,pages,m=self.prepare()
+        self.assertEqual(len(m['generated_files']),4+1)
+        self.assertTrue(all('/' not in name for name in pages))
 
     def test_source_is_never_executed(self):
         marker=self.base/'executed'
@@ -130,9 +137,25 @@ class SnapshotTests(unittest.TestCase):
     def test_source_filenames_cannot_embed_html_in_navigation(self):
         self.put('<img src=x>.py', 'pass\n')
         self.git('add','.');self.git('commit','-qm','untrusted filename')
-        _,pages,_=self.prepare()
-        self.assertIn('&lt;img src=x&gt;',pages['Files/<img src=x>.py.md'])
+        _,pages,m=self.prepare()
+        page=next(e['page'] for e in m['entries'] if e['path']=='<img src=x>.py')
+        self.assertIn('&lt;img src=x&gt;',pages[page])
         self.assertNotIn('[<img src=x>',pages['README.md'])
+
+    def test_origin_credentials_are_not_exported(self):
+        credential = 'credential-for-fixture-only'
+        self.git('remote','set-url','origin','https://user:'+credential+'@github.com/example/source.git')
+        _,pages,m=self.prepare()
+        self.assertEqual(m['source_url'],'https://github.com/example/source')
+        self.assertNotIn(credential,''.join(pages.values()))
+
+    def test_explicit_source_url_and_missing_origin(self):
+        self.git('remote','remove','origin')
+        with self.assertRaises(snapshot.SnapshotError):self.prepare()
+        _,pages,m=self.prepare(source_url='https://github.com/example/another')
+        self.assertEqual(m['source_url'],'https://github.com/example/another')
+        with self.assertRaises(snapshot.SnapshotError):
+            self.prepare(source_url='https://user:private@github.com/example/another')
 
     def test_standalone_skill_cli_dry_run_then_apply(self):
         copied=self.base/'copied-skill'

@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 SCHEMA = 1
@@ -51,8 +51,34 @@ def safe_label(value):
     return re.sub(r'([\\`*_\[\]#!|])', r'\\\1', value)
 
 
-def page_name(path):
-    return 'Files/' + path + '.md'
+def page_name(path, ordinal):
+    basename = re.sub(r'[^\w.-]+', '_', PurePosixPath(path).name)[:80] or 'source'
+    return f'{ordinal:04d}-{basename}.md'
+
+
+def github_source(repo, explicit=None):
+    if explicit:
+        raw = explicit
+    else:
+        result = subprocess.run(['git', '-C', str(repo), 'remote', 'get-url', 'origin'], capture_output=True)
+        if result.returncode:
+            raise SnapshotError('Supply --source-url https://github.com/OWNER/REPO or configure a GitHub origin.')
+        raw = result.stdout.decode().strip()
+    ssh = re.fullmatch(r'git@github\.com:([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?', raw)
+    if ssh:
+        owner, name = ssh.groups()
+    else:
+        url = urlsplit(raw)
+        if url.scheme != 'https' or url.hostname != 'github.com' or url.query or url.fragment:
+            raise SnapshotError('Source must be a GitHub repository URL; supply --source-url explicitly.')
+        if explicit and (url.username or url.password):
+            raise SnapshotError('Do not put credentials in --source-url.')
+        parts = url.path.strip('/').removesuffix('.git').split('/')
+        if len(parts) != 2 or not all(re.fullmatch(r'[A-Za-z0-9_.-]+', p) for p in parts):
+            raise SnapshotError('Source must identify one GitHub owner/repository.')
+        owner, name = parts
+    # Remote URLs may contain credentials; emit only canonical public identifiers.
+    return f'https://github.com/{owner}/{name}'
 
 
 def frontmatter(level, now):
@@ -81,7 +107,7 @@ def directory_tree(entries):
     return '\n'.join(lines)
 
 
-def prepare(repo, output, *, ref='HEAD', sensitivity='private', timezone='UTC',
+def prepare(repo, output, *, ref='HEAD', source_url=None, sensitivity='private', timezone='UTC',
             include=(), exclude=(), max_bytes=262144, max_total_bytes=5242880, max_files=500):
     repo = Path(repo).resolve()
     # Refuse output symlinks as well as existing directories.
@@ -100,6 +126,7 @@ def prepare(repo, output, *, ref='HEAD', sensitivity='private', timezone='UTC',
     if sensitivity not in {'public', 'private', 'confidential'}:
         raise SnapshotError('Unsupported sensitivity.')
     commit = git(repo, 'rev-parse', '--verify', '--end-of-options', ref + '^{commit}').decode().strip()
+    source_url = github_source(repo, source_url)
     raw = git(repo, 'ls-tree', '-r', '-l', '-z', '--full-tree', commit)
     records = raw.split(b'\0')
     if len(records) > 10001:
@@ -146,16 +173,17 @@ def prepare(repo, output, *, ref='HEAD', sensitivity='private', timezone='UTC',
         if TOKEN.search(data):
             entry['status'] = 'likely-secret-content'
             continue
-        page = page_name(path)
+        page = page_name(path, len(pages) + 1)
         entry.update(page=page, source_sha256=hashlib.sha256(data).hexdigest(), bytes=len(data))
         meta = frontmatter(sensitivity, now)
         pages[page] = (meta + '# ' + safe_label(path) + '\n// Disposable source view; the Git repository is authoritative.\n\n'
                        + '**NON-AUTHORITATIVE SNAPSHOT — do not edit here to change the project.**\n\n'
+                       + '[Original source](' + source_url + '/blob/' + commit + '/' + quote(path, safe='/') + ')\n\n'
                        + 'Source commit: `' + commit + '`\n\n'
                        + '[Snapshot index](' + '../' * (len(PurePosixPath(page).parts)-1) + 'README.md)\n\n'
                        + fenced(source, LANGUAGES.get(PurePosixPath(path).suffix.lower(), 'text')))
         total += len(data)
-    # Detect rare source-file/source-directory collisions caused by the .md suffix.
+    # All source pages are flat and numbered, independent of original path spelling.
     for page in pages:
         if any(str(parent) in pages for parent in PurePosixPath(page).parents):
             raise SnapshotError('Source names collide after Markdown mapping; narrow the selected files.')
@@ -165,6 +193,7 @@ def prepare(repo, output, *, ref='HEAD', sensitivity='private', timezone='UTC',
     pages['README.md'] = (frontmatter(sensitivity, now) + '# ' + safe_label(repo.name) + ' — source snapshot\n'
         + '// A temporary reading copy pinned to a Git commit.\n\n'
         + '**NON-AUTHORITATIVE / DISPOSABLE.** Source changes belong in Git. Keep review findings outside this folder.\n\n'
+        + '[Original GitHub repository](' + source_url + ') · [Pinned tree](' + source_url + '/tree/' + commit + ')\n\n'
         + 'Commit: `' + commit + '`\n\nScope: committed tree only; uncommitted and untracked work is not included.\n\n'
         + f'Included: {len(included)} files / {total} source bytes. Omitted: {len(omitted)} entries.\n\n'
         + '## Directory structure\n// Original paths, with explicit omissions.\n\n'
@@ -174,7 +203,8 @@ def prepare(repo, output, *, ref='HEAD', sensitivity='private', timezone='UTC',
         + '## End-of-session disposition\n// Distill findings into durable notes, then remove the disposable copy when wanted.\n\n'
         + 'No automatic expiry, deletion or reverse synchronization. If annotations were added here, preserve them before removing this folder. '
         + 'The source repository remains authoritative. The manifest records omissions and generated-file hashes; secret screening is conservative, not a completeness guarantee.\n')
-    manifest = dict(schema=SCHEMA, authoritative=False, disposable=True, repository=repo.name,
+    manifest = dict(schema=SCHEMA, authoritative=False, disposable=True, repository=repo.name, source_url=source_url,
+                    layout='flat-numbered-pages',
                     commit=commit, captured_at=now.isoformat(), sensitivity=sensitivity,
                     scope='committed-tree-only', entries=entries,
                     policy=dict(include=list(include), exclude=list(exclude), max_bytes=max_bytes,
@@ -207,6 +237,7 @@ def main(argv=None):
     parser.add_argument('--repo', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--ref', default='HEAD')
+    parser.add_argument('--source-url', help='Original https://github.com/OWNER/REPO; otherwise derive safely from origin')
     parser.add_argument('--sensitivity', choices=['public','private','confidential'], default='private')
     parser.add_argument('--timezone', default='UTC')
     parser.add_argument('--include', action='append', default=[])
@@ -217,7 +248,7 @@ def main(argv=None):
     parser.add_argument('--apply', action='store_true')
     args = parser.parse_args(argv)
     try:
-        output, pages, manifest = prepare(args.repo, args.output, ref=args.ref,
+        output, pages, manifest = prepare(args.repo, args.output, ref=args.ref, source_url=args.source_url,
             sensitivity=args.sensitivity, timezone=args.timezone, include=args.include,
             exclude=args.exclude, max_bytes=args.max_bytes,
             max_total_bytes=args.max_total_bytes, max_files=args.max_files)
