@@ -1,8 +1,8 @@
 ---
-name: source-snapshot
+name: repo-reader
 description: Create a disposable, non-authoritative Markdown view of a Git repository for browsing code in Obsidian, including a linked directory tree, fenced source pages and commit provenance. Use when the human asks to markdownify source or review a repository inside a vault; keep findings separate and never treat the snapshot as editable upstream source.
 ---
-# Source snapshot
+# Repo Reader
 // Read code comfortably in Obsidian without changing where the source of truth lives.
 
 Use the bundled [Python script](scripts/markdown_snapshot.py). Requires Git and Python 3.11+, standard library only. The folder works when copied independently from this repository. No scheduler, model API, package installation or global skill activation is required.

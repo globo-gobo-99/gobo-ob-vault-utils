@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).parents[1]
-SCRIPT = ROOT/'skills/source-snapshot/scripts/markdown_snapshot.py'
+SCRIPT = ROOT/'skills/repo-reader/scripts/markdown_snapshot.py'
 spec = importlib.util.spec_from_file_location('source_snapshot', SCRIPT)
 snapshot = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(snapshot)

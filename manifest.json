@@ -30,9 +30,9 @@
       "path": "skills/vault-maintenance/SKILL.md",
       "entrypoint": "skills/vault-maintenance/scripts/maintain_vault.py"
     },
-    "source-snapshot": {
-      "path": "skills/source-snapshot/SKILL.md",
-      "entrypoint": "skills/source-snapshot/scripts/markdown_snapshot.py",
+    "repo-reader": {
+      "path": "skills/repo-reader/SKILL.md",
+      "entrypoint": "skills/repo-reader/scripts/markdown_snapshot.py",
       "default_mode": "dry-run",
       "source_scope": "committed Git tree",
       "authoritative": false,

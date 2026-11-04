@@ -1,4 +1,4 @@
 interface:
-  display_name: "Source Snapshot"
+  display_name: "Repo Reader"
   short_description: "Browse disposable Git source snapshots in Obsidian"
   default_prompt: "Create a disposable Markdown source snapshot of the requested repository, pinned to a commit, with a linked directory tree and explicit omissions. Keep the source authoritative and review findings separate."
